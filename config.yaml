@@ -1,0 +1,5 @@
+proxy:
+  - name: cctest
+    host: http://api.test.changchangenglish.com
+  - name: baidu
+    host: https://www.baidu.com
