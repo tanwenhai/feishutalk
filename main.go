@@ -26,7 +26,7 @@ func prepareRequest(ctx *fasthttp.RequestCtx) {
 	req.Header.Del("Connection")
 	rewrite := fasthttp.NewPathSlashesStripper(1)
 	newRequestURI := string(rewrite(ctx))
-	if ctx.QueryArgs().String() != "" {
+	if ctx.QueryArgs().Len() == 0 {
 		newRequestURI += "?" + ctx.QueryArgs().String()
 	}
 	req.SetRequestURI(newRequestURI)
