@@ -1,1 +1,1 @@
-# 一个http代理转发，用于多环境配置微信公众号
+# prometheus AlertManager webhook 飞书 

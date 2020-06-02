@@ -6,8 +6,8 @@ ENV GOPROXY=https://goproxy.cn
 COPY . /build/
 WORKDIR /build
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOARM=6 go build -ldflags '-w -s' -o proxy
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOARM=6 go build -ldflags '-w -s' -o talk
 
 FROM alpine:latest
-COPY --from=build /build/proxy /
-ENTRYPOINT ["/proxy"]
+COPY --from=build /build/talk /
+ENTRYPOINT ["/talk"]

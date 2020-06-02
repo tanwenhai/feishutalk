@@ -1,5 +1,5 @@
-proxy:
-  - name: cctest
-    host: http://api.test.changchangenglish.com
-  - name: baidu
-    host: https://www.baidu.com
+server:
+  port: 8888
+webhook:
+  feishu1:
+    url: https://open.feishu.cn/open-apis/bot/hook/a69035911d6d45c1b844b8576965a5b4

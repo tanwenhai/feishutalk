@@ -1,90 +1,79 @@
 package main
 
 import (
-	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/buaazp/fasthttprouter"
 	log "github.com/sirupsen/logrus"
 	"github.com/valyala/fasthttp"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
-	"strings"
+	"strconv"
 )
 
-type ProxyHostClient struct {
-	Proxy []struct {
-		Name string `yaml:"name"`
-		Host string `yaml:"host"`
-	} `yaml:"proxy"`
+type ServerConfig struct {
+	Server struct {
+		Port int `yaml:"port"`
+	} `yaml:"server"`
+	Webhook map[string]struct {
+		Url string `yaml:"url"`
+	} `yaml:"webhook"`
 }
 
-var proxyHostClient *ProxyHostClient
+var serverConfig *ServerConfig
 
-func prepareRequest(ctx *fasthttp.RequestCtx) {
-	req := &ctx.Request
-	req.Header.Del("Connection")
-	rewrite := fasthttp.NewPathSlashesStripper(1)
-	newRequestURI := string(rewrite(ctx))
-	if ctx.QueryArgs().Len() == 0 {
-		newRequestURI += "?" + ctx.QueryArgs().String()
-	}
-	req.SetRequestURI(newRequestURI)
-}
-
-var client = &fasthttp.Client{}
-
-func Proxy(ctx *fasthttp.RequestCtx) {
-	req := &ctx.Request
-	resp := &ctx.Response
-	path := ctx.Path()
-	n := bytes.IndexByte(path[1:], '/')
-	errorHandler := func(format string, a ...interface{}) {
-		msg := fmt.Sprintf(format, a)
-		log.Printf(msg)
-		resp.SetStatusCode(500)
-		resp.SetBody([]byte(msg))
-	}
-
-	if n < 0 {
-		ctx.Response.SetStatusCode(200)
-		ctx.Response.SetBody([]byte("This Is Wechat Proxy Server"))
+func Webhook(ctx *fasthttp.RequestCtx) {
+	name := ctx.UserValue("name").(string)
+	_, ok := serverConfig.Webhook[name]
+	if !ok {
+		_, _ = fmt.Fprint(ctx, name+" webhook not found")
+		log.Error(name + " webhook not found")
+		ctx.Response.SetStatusCode(500)
 		return
 	}
-	appname := string(path[1 : n+1])
 
-	prepareRequest(ctx)
-	var host = ""
-	for _, v := range proxyHostClient.Proxy {
-		if v.Name == appname {
-			if strings.HasPrefix(v.Host, "https") {
-				host = v.Host[8:]
-			} else {
-				host = v.Host[7:]
-			}
-		}
-	}
-	if host == "" {
-		resp.SetStatusCode(500)
-		errorHandler("host no match %s", appname)
+	url := serverConfig.Webhook[name].Url
+	var body map[string]interface{}
+	err := json.Unmarshal(ctx.Request.Body(), &body)
+	if err != nil {
+		log.Error(err)
+		_, _ = fmt.Fprint(ctx, "read body error")
+		ctx.Response.SetStatusCode(500)
 		return
 	}
-	req.SetHost(host)
-	req.Header.SetHost(host)
+	alerts, ok := body["alerts"]
+	if !ok {
+		ctx.Response.SetStatusCode(500)
+		return
+	}
+	var title string
+	var text string
+	for _, v := range alerts.([]interface{}) {
+		title = v.(map[string]interface{})["labels"].(map[string]interface{})["alertname"].(string)
+		text = v.(map[string]interface{})["annotations"].(map[string]interface{})["message"].(string)
+		text += "\n严重级别:" + v.(map[string]interface{})["labels"].(map[string]interface{})["severity"].(string)
+	}
 
+	req := &fasthttp.Request{}
+	req.SetRequestURI(url)
+	resBody := make(map[string]string)
+	resBody["title"] = title
+	resBody["text"] = text
+	requestBody, _ := json.Marshal(resBody)
+	req.SetBody(requestBody)
+	req.Header.SetContentType("application/json; charset=utf-8")
+	req.Header.SetMethod("POST")
+	resp := &fasthttp.Response{}
+	client := &fasthttp.Client{}
 	if err := client.Do(req, resp); err != nil {
-		errorHandler("error when proxying the request: %s", err)
+		_, _ = fmt.Fprintln(ctx, "请求失败:", err.Error())
+		log.Error("请求失败:", err.Error())
 		return
 	}
-	if log.IsLevelEnabled(log.DebugLevel) {
-		log.WithField("req", req.String()).WithField("resp", resp.String()).Debugf("track request")
-	}
-
-	postprocessResponse(resp)
-}
-
-func postprocessResponse(resp *fasthttp.Response) {
-	resp.Header.Del("Connection")
+	_, _ = fmt.Fprint(ctx, string(resp.Body()))
+	ctx.Response.SetStatusCode(200)
 }
 
 func main() {
@@ -108,11 +97,14 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	proxyHostClient = new(ProxyHostClient)
-	err = yaml.Unmarshal(yamlFile, proxyHostClient)
+	serverConfig = new(ServerConfig)
+	err = yaml.Unmarshal(yamlFile, serverConfig)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	log.Fatal(fasthttp.ListenAndServe(":8888", Proxy))
+	router := fasthttprouter.New()
+	router.POST("/:name/webhook", Webhook)
+
+	log.Fatal(fasthttp.ListenAndServe(":"+strconv.Itoa(serverConfig.Server.Port), router.Handler))
 }
