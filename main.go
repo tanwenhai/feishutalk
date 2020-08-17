@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"strconv"
+
 	"github.com/buaazp/fasthttprouter"
 	log "github.com/sirupsen/logrus"
 	"github.com/valyala/fasthttp"
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
-	"os"
-	"strconv"
 )
 
 type ServerConfig struct {
@@ -51,28 +52,48 @@ func Webhook(ctx *fasthttp.RequestCtx) {
 	var title string
 	var text string
 	for _, v := range alerts.([]interface{}) {
-		title = v.(map[string]interface{})["labels"].(map[string]interface{})["alertname"].(string)
-		text = v.(map[string]interface{})["annotations"].(map[string]interface{})["message"].(string)
-		text += "\n严重级别:" + v.(map[string]interface{})["labels"].(map[string]interface{})["severity"].(string)
+		vMap := v.(map[string]interface{})
+		labels := vMap["labels"].(map[string]interface{})
+		annotations := vMap["annotations"].(map[string]interface{})
+		title = labels["alertname"].(string)
+		text = annotations["message"].(string)
+		text += "\n严重级别:"
+		_, ok := labels["severity"]
+		if ok {
+			text += labels["severity"].(string)
+		} else {
+			text += "未知"
+		}
+		app, ok := labels["app"]
+		if ok {
+			text += "\n应用:" + app.(string)
+		}
+		namespace, ok := labels["kubernetes_namespace"]
+		if !ok {
+			namespace, ok = labels["namespace"]
+		}
+		if ok {
+			text += "\n命名空间:" + namespace.(string)
+		}
+		req := &fasthttp.Request{}
+		req.SetRequestURI(url)
+		resBody := make(map[string]string)
+		resBody["title"] = title
+		resBody["text"] = text
+		requestBody, _ := json.Marshal(resBody)
+		req.SetBody(requestBody)
+		req.Header.SetContentType("application/json; charset=utf-8")
+		req.Header.SetMethod("POST")
+		resp := &fasthttp.Response{}
+		client := &fasthttp.Client{}
+		if err := client.Do(req, resp); err != nil {
+			_, _ = fmt.Fprintln(ctx, "请求失败:", err.Error())
+			log.Error("请求失败:", err.Error())
+			return
+		}
+		_, _ = fmt.Fprint(ctx, string(resp.Body()))
 	}
 
-	req := &fasthttp.Request{}
-	req.SetRequestURI(url)
-	resBody := make(map[string]string)
-	resBody["title"] = title
-	resBody["text"] = text
-	requestBody, _ := json.Marshal(resBody)
-	req.SetBody(requestBody)
-	req.Header.SetContentType("application/json; charset=utf-8")
-	req.Header.SetMethod("POST")
-	resp := &fasthttp.Response{}
-	client := &fasthttp.Client{}
-	if err := client.Do(req, resp); err != nil {
-		_, _ = fmt.Fprintln(ctx, "请求失败:", err.Error())
-		log.Error("请求失败:", err.Error())
-		return
-	}
-	_, _ = fmt.Fprint(ctx, string(resp.Body()))
 	ctx.Response.SetStatusCode(200)
 }
 
