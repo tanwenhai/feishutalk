@@ -26,6 +26,7 @@ type ServerConfig struct {
 var serverConfig *ServerConfig
 
 func Webhook(ctx *fasthttp.RequestCtx) {
+	log.Info("handle webhook.");
 	name := ctx.UserValue("name").(string)
 	_, ok := serverConfig.Webhook[name]
 	if !ok {
