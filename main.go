@@ -127,5 +127,6 @@ func main() {
 	router := fasthttprouter.New()
 	router.POST("/:name/webhook", Webhook)
 
+	log.Info("http server listen on ", serverConfig.Server.Port)
 	log.Fatal(fasthttp.ListenAndServe(":"+strconv.Itoa(serverConfig.Server.Port), router.Handler))
 }
