@@ -64,5 +64,5 @@ type PrometheusWebHookRequestData struct {
 	ExternalURL       string                                `json:"externalURL"`
 	Version           string                                `json:"version"`
 	GroupKey          string                                `json:"groupKey"`
-	TruncatedAlerts   string                                `json:"truncatedAlerts"`
+	TruncatedAlerts   int                                   `json:"truncatedAlerts"`
 }

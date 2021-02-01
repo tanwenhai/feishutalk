@@ -69,13 +69,6 @@ func Webhook(ctx *fasthttp.RequestCtx) {
 			continue
 		}
 		var cardElements []FeiShuBotMsgTypeOfCardElements
-		cardElements = append(cardElements, FeiShuBotMsgTypeOfCardElements{
-			Tag: "div",
-			Text: Content{
-				Content: text,
-				Tag:     "lark_md",
-			},
-		})
 		labels := v.Labels
 		annotations := v.Annotations
 		title = labels[Alertname].(string)
@@ -83,7 +76,14 @@ func Webhook(ctx *fasthttp.RequestCtx) {
 		cardElements = append(cardElements, FeiShuBotMsgTypeOfCardElements{
 			Tag: "div",
 			Text: Content{
-				Content: "发生时间:" + v.StartAt,
+				Content: "**发生时间**:" + v.StartAt,
+				Tag:     "lark_md",
+			},
+		})
+		cardElements = append(cardElements, FeiShuBotMsgTypeOfCardElements{
+			Tag: "div",
+			Text: Content{
+				Content: text,
 				Tag:     "lark_md",
 			},
 		})
@@ -164,4 +164,5 @@ func Webhook(ctx *fasthttp.RequestCtx) {
 	ctx.Response.SetStatusCode(200)
 }
 
-//sum(irate(istio_requests_total{reporter=\"$qrep\",destination_service=~\"$service\",response_code!~\"5.*\"}[5m])) / sum(irate(istio_requests_total{reporter=\"$qrep\",destination_service=~\"$service\"}[5m]))
+//sum(ira
+//te(istio_requests_total{reporter=\"$qrep\",destination_service=~\"$service\",response_code!~\"5.*\"}[5m])) / sum(irate(istio_requests_total{reporter=\"$qrep\",destination_service=~\"$service\"}[5m]))
